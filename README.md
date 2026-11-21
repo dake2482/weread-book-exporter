@@ -2,6 +2,7 @@
 
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![Playwright](https://img.shields.io/badge/Engine-Playwright-2EAD33.svg)](https://playwright.dev/)
+[![ego lite](https://img.shields.io/badge/Engine-ego%20lite-6E7BFF.svg)](https://lite.ego.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 将微信读书 Web 端已购或会员书籍**无损抓取全书全文**，并一键导出为 **精排 PDF**、**标准 EPUB** 以及 **纯 Markdown 笔记（适配 Obsidian / Notion）**。
@@ -39,7 +40,7 @@
 
 ---
 
-## 🚀 快速开始
+## 🚀 快速开始 · 方式一：Playwright 驱动（弹出窗口，扫码一次）
 
 ### 1. 安装依赖（国内极速安装，仅需几秒）
 
@@ -71,6 +72,43 @@ python main.py https://weread.qq.com/web/reader/3b132980813ab94eeg013129
 > - 所有文件最终保存在 `output/` 目录下。
 
 *(高级用法：如需分步运行，也可单独执行 `python crawl_weread.py <链接或ID>` 与 `python export_book.py <链接或ID>`)*
+
+---
+
+## 🤖 方式二：使用 ego lite 浏览器抓取（免弹窗 · 免扫码 · 后台静默）
+
+[ego lite](https://lite.ego.app/) 是一款面向 AI Agent 的 Chromium 浏览器。本仓库提供 **Playwright 流程的等价替代驱动 `crawl_weread_ego.py`**，直接复用 ego lite 里已登录的微信读书会话，全程不弹窗、不扫码、不抢占你的鼠标和标签页，适合后台批量导出。
+
+### 1. 前置条件
+
+- 安装并打开 [ego lite](https://lite.ego.app/)（首次启动会自动把 `ego-browser` CLI 装到 `~/.local/bin/ego-browser`）；
+- **在 ego lite 中登录一次微信读书**（之后凭证常驻浏览器，无需重复登录）；
+- 本仓库依赖照常安装（`pip install -r requirements.txt`，无需 Playwright 浏览器）。
+
+### 2. 抓取 → 修正 → 导出
+
+```bash
+# ① 全书抓取（翻页节奏、断点续传、逐页落盘与 Playwright 版完全一致）
+python crawl_weread_ego.py https://weread.qq.com/web/reader/<book_id>
+
+# ② 后处理：章节按官方目录重排 + 元数据修正（简介/出版社/ISBN）
+python postprocess_ego.py <book_id>
+
+# ③ 导出三件套（PDF / EPUB / Markdown）
+python export_book.py <book_id>
+```
+
+### 3. 实现要点（适配 ego-browser 的坑位经验）
+
+| 微信读书网页行为 | ego 驱动的应对 |
+| :--- | :--- |
+| 点击处理器绑在子元素上，容器合成 `el.click()` 无效 | `evaluate` 读取元素矩形 → **坐标级 `mouse.click`** |
+| 右侧工具栏悬停才显示 | 先 `mouse.move` 唤出，再取坐标点击 |
+| 合成 `ArrowRight` 键盘事件不翻页 | 改点页脚 **`.renderTarget_pager_button_right`** 按钮 |
+| Canvas 挂钩需在页面脚本前注入 | `cdp("Page.addScriptToEvaluateOnNewDocument")` + **幂等护栏**防重复挂钩 |
+| 阅读器可能恢复上次阅读位置 | 跳转章节前**清空字符缓冲**，杜绝混入旧位置内容 |
+
+> 断点续传与 Playwright 版共用同一套 `output/<book_id>_v2/` 落盘结构，两套驱动可交替使用；任务空间 ID 记录在 `_state.json` 的 `ego_space_id`，中断后重跑自动续传。
 
 ---
 
